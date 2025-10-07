@@ -3,8 +3,8 @@ pipeline {
 
   environment {
     DOCKERHUB_CRED = 'docker-hub'
-    DOCKERHUB_USER = 'Patiess'   // <-- ide írd a saját Docker Hub userneved
-    IMAGE = "${env.Patiess}/ci-cd-demo"
+    DOCKERHUB_USER = 'patiess'   // <-- ide írd a saját Docker Hub userneved
+    IMAGE = "${env.DOCKERHUB_USER}/ci-cd-demo"
     TAG   = "${env.BUILD_NUMBER}"
   }
 
