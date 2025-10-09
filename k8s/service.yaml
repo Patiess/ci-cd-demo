@@ -1,22 +1,11 @@
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: v1
+kind: Service
 metadata:
-  name: hello-deploy
-  labels:
-    app: hello
+  name: hello-svc
 spec:
-  replicas: 1
+  type: NodePort
   selector:
-    matchLabels:
-      app: hello
-  template:
-    metadata:
-      labels:
-        app: hello
-    spec:
-      containers:
-      - name: hello
-        image: patiess/ci-cd-demo:latest
-        ports:
-        - containerPort: 80
-        imagePullPolicy: Always
+    app: hello
+  ports:
+  - port: 80
+    targetPort: 80
