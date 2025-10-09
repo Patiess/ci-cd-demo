@@ -3,7 +3,7 @@ pipeline {
 
   environment {
     DOCKERHUB_CRED = 'docker-hub'
-    DOCKERHUB_USER = 'patiess'   // <-- ide írd a saját Docker Hub userneved
+    DOCKERHUB_USER = 'patiess'
     IMAGE = "${env.DOCKERHUB_USER}/ci-cd-demo"
     TAG   = "${env.BUILD_NUMBER}"
   }
@@ -21,7 +21,7 @@ pipeline {
 
     stage('Test') {
       steps {
-        sh 'docker run --rm ${IMAGE}:${TAG} || true'
+        sh 'docker run --rm ${IMAGE}:${TAG}'
       }
     }
 
@@ -33,6 +33,16 @@ pipeline {
             sh 'docker tag ${IMAGE}:${TAG} ${IMAGE}:latest'
             sh 'docker push ${IMAGE}:latest'
           }
+        }
+      }
+    }
+
+    // 🔽🔽🔽 IDE jön most a K8s deploy stage 🔽🔽🔽
+    stage('Deploy to K8s') {
+      steps {
+        withEnv(['KUBECONFIG=/var/jenkins_home/.kube/config']) {
+          sh 'kubectl get nodes'
+          sh 'kubectl apply -f k8s/'
         }
       }
     }
