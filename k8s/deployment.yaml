@@ -1,22 +1,24 @@
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: hello-deploy
-  labels:
-    app: hello
 spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: hello
   template:
-    metadata:
-      labels:
-        app: hello
     spec:
       containers:
-      - name: hello
-        image: patiess/ci-cd-demo:latest
-        ports:
-        - containerPort: 80
-        imagePullPolicy: Always
+        - name: hello
+          image: patiess/ci-cd-demo:latest
+          ports:
+            - containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
