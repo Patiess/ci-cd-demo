@@ -1,23 +1,19 @@
 pipeline {
   agent any
+  options { timestamps() }
 
-  options {
-    buildDiscarder(logRotator(numToKeepStr: '30'))
-    timestamps()
-  }
-
-  parameters {
-    booleanParam(name: 'RUN_NIGHTLY', defaultValue: false, description: 'Ha igaz, outbox archiválása történik.')
-    string(name: 'BASE', defaultValue: '/var/jenkins_home/fileflow', description: 'Alap könyvtár (inbox/fe/bo/processing/outbox/archive).')
+  environment {
+    BASE = '/var/jenkins_home/fileflow'
   }
 
   stages {
+
     stage('Init dirs') {
       steps {
-        sh '''#!/bin/bash
-          set -euxo pipefail
-          BASE="${BASE:-/var/jenkins_home/fileflow}"
-          mkdir -p "$BASE/inbox" "$BASE/processing" "$BASE/fe" "$BASE/bo" "$BASE/outbox" "$BASE/archive"
+        sh '''
+          set -euo pipefail
+          mkdir -p "$BASE"/{inbox,processing/{invoices,messages,reports,texts},fe,bo,outbox,archive,logs}
+          echo "Könyvtárstruktúra:"
           ls -l "$BASE" || true
         '''
       }
@@ -25,83 +21,123 @@ pipeline {
 
     stage('Route files') {
       steps {
-        sh '''#!/bin/bash
+        sh '''
           set -euo pipefail
-          BASE="${BASE:-/var/jenkins_home/fileflow}"
-
-          declare -A ROUTES=(
-            [pdf]="fe"
-            [xml]="fe"
-            [csv]="bo"
-            [json]="bo"
-            [txt]="bo"
-          )
 
           shopt -s nullglob
-          moved_any=0
+          has_any=0
+
           for f in "$BASE/inbox"/*; do
+            has_any=1
             name="$(basename "$f")"
             ext="${name##*.}"
-            dest="${ROUTES[$ext]:-processing}"
-            echo "Move: $name -> $dest/"
-            mv -v "$f" "$BASE/$dest/"
-            moved_any=1
+
+            case "$ext" in
+              inv)
+                type="invoices"; target_side="bo"
+                ;;
+              msg)
+                type="messages"; target_side="fe"
+                ;;
+              rpt)
+                type="reports"; target_side="bo"
+                ;;
+              txt)
+                type="texts"; target_side="fe"
+                ;;
+              *)
+                echo "Ismeretlen kiterjesztés, kihagyva: $name"
+                continue
+                ;;
+            esac
+
+            mkdir -p "$BASE/processing/$type"
+            mv "$f" "$BASE/processing/$type/$name"
+
+            # (opcionális) rezidens másolat a FE/BO mappákban megfigyeléshez
+            cp -f "$BASE/processing/$type/$name" "$BASE/$target_side/" || true
+
+            echo "Routolva: $name  -> processing/$type  (+ $target_side megfigyelés)"
           done
 
-          if [ "$moved_any" -eq 0 ]; then
+          if [ "$has_any" -eq 0 ]; then
             echo "Nincs mit mozgatni az inbox-ban."
           fi
 
           echo "Állapot a routing után:"
-          for d in inbox processing fe bo outbox; do
-            echo "# $d"
-            ls -l "$BASE/$d" || true
-          done
+          echo "# inbox";      ls -l "$BASE/inbox"      || true
+          echo "# processing"; ls -l "$BASE/processing" || true
+          echo "# fe";         ls -l "$BASE/fe"         || true
+          echo "# bo";         ls -l "$BASE/bo"         || true
         '''
       }
     }
 
     stage('Simulate containers (process -> outbox)') {
       steps {
-        sh '''#!/bin/bash
+        sh '''
           set -euo pipefail
-          BASE="${BASE:-/var/jenkins_home/fileflow}"
 
-          for d in fe bo processing; do
-            shopt -s nullglob
-            for f in "$BASE/$d"/*; do
-              [ -e "$f" ] || continue
-              echo "$(date -Is) processed by $d" >> "$f"
-              mv -v "$f" "$BASE/outbox/"
+          for type in invoices messages reports texts; do
+            OUT="$BASE/outbox/${type}.txt"
+            : > "$OUT"   # üresítjük a kimeneti fájlt futás elején
+
+            # végigmegyünk a konkrét fájlokon; üres mappa esetén továbblépünk
+            for f in "$BASE/processing/$type"/*; do
+              [ -e "$f" ] || continue      # nincs találat
+              [ -f "$f" ] || continue      # csak fájlokra dolgozunk
+
+              echo ">> $(basename "$f")" >> "$OUT"
+              cat "$f" >> "$OUT"
+              printf "\\n----\\n" >> "$OUT"
             done
           done
 
-          echo "Outbox:"
+          echo "Outbox tartalma:"
           ls -l "$BASE/outbox" || true
         '''
       }
     }
 
     stage('Nightly package (optional)') {
-      when { expression { return params.RUN_NIGHTLY } }
+      when {
+        expression { return params.NIGHTLY?.toString() == 'true' }
+      }
       steps {
-        sh '''#!/bin/bash
+        sh '''
           set -euo pipefail
-          BASE="${BASE:-/var/jenkins_home/fileflow}"
-          TS="$(date +%Y%m%d)"
-          mkdir -p "$BASE/archive"
+          ts="$(date +%Y%m%d-%H%M%S)"
+          pkg="$BASE/archive/pkg-$ts.tgz"
 
-          if compgen -G "$BASE/outbox/*" > /dev/null; then
-            tar -czf "$BASE/archive/outbox_${TS}.tar.gz" -C "$BASE" outbox
-            echo "Archive: $BASE/archive/outbox_${TS}.tar.gz"
-            rm -f "$BASE/outbox"/* || true
-          else
-            echo "Outbox üres, nincs mit archiválni."
-          fi
+          # ha üres az outbox, a tar üres tgz-t csinál – ez nekünk oké
+          tar -czf "$pkg" -C "$BASE/outbox" . || true
+          echo "Csomag készült: $pkg"
 
-          ls -l "$BASE/archive" || true
+          # opcionális takarítás
+          find "$BASE/outbox" -type f -delete || true
+
+          echo "Archive:"
+          ls -lh "$BASE/archive" || true
         '''
       }
     }
   }
+
+  post {
+    success {
+      echo 'Fileflow pipeline: SUCCESS'
+    }
+    failure {
+      echo 'Fileflow pipeline: FAILURE'
+    }
+    always {
+      sh 'echo "Kész."'
+    }
+  }
 }
+
+properties([
+  parameters([
+    booleanParam(name: 'NIGHTLY', defaultValue: false, description: 'Éjszakai csomagolás és outbox ürítés')
+  ])
+])
