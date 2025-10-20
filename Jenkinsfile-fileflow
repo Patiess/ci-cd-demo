@@ -1,12 +1,36 @@
 pipeline {
   agent any
-  options { timestamps() }
+
+  // fontos: ne legyen implicit (lightweight) checkout
+  options {
+    skipDefaultCheckout(true)
+    timestamps()
+  }
+
+  parameters {
+    booleanParam(name: 'NIGHTLY', defaultValue: false, description: 'Éjszakai csomagolás és outbox ürítés')
+  }
 
   environment {
     BASE = '/var/jenkins_home/fileflow'
   }
 
   stages {
+
+    stage('Checkout') {
+      steps {
+        // tiszta workspace és explicit, teljes klón
+        deleteDir()
+        checkout([
+          $class: 'GitSCM',
+          branches: [[name: '*/main']],
+          userRemoteConfigs: [[
+            url: 'https://github.com/Patiess/ci-cd-demo.git',
+            credentialsId: 'github-pat-2'
+          ]]
+        ])
+      }
+    }
 
     stage('Init dirs') {
       steps {
@@ -27,7 +51,6 @@ pipeline {
 
           any=0
           for f in "$BASE/inbox"/*; do
-            # ha nincs találat, a minta literál marad; ilyenkor lépjünk tovább
             [ -e "$f" ] || break
             any=1
 
@@ -41,7 +64,6 @@ pipeline {
             esac
 
             mv "$f" "$BASE/processing/$type/$name"
-            # opcionális „megfigyelő” másolat FE/BO mappába
             cp -f "$BASE/processing/$type/$name" "$BASE/$target_side/" 2>/dev/null || true
             echo "Routolva: $name -> processing/$type (+ $target_side)"
           done
@@ -66,14 +88,14 @@ pipeline {
 
           for type in invoices messages reports texts; do
             OUT="$BASE/outbox/${type}.txt"
-            : > "$OUT"    # kiürítjük / létrehozzuk
+            : > "$OUT"
 
             for f in "$BASE/processing/$type"/*; do
-              [ -e "$f" ] || break     # üres mappa -> továbblépünk
-              [ -f "$f" ] || continue  # csak fájlokra dolgozunk
+              [ -e "$f" ] || break
+              [ -f "$f" ] || continue
               echo ">> $(basename "$f")" >> "$OUT"
               cat "$f" >> "$OUT"
-              printf "\n----\n" >> "$OUT"
+              printf "\\n----\\n" >> "$OUT"
             done
           done
 
@@ -92,7 +114,6 @@ pipeline {
           pkg="$BASE/archive/pkg-$ts.tgz"
           tar -czf "$pkg" -C "$BASE/outbox" . 2>/dev/null || true
           echo "Csomag készült: $pkg"
-          # (opcionális) ürítés
           find "$BASE/outbox" -type f -delete || true
           echo "Archive:"
           ls -lh "$BASE/archive" || true
@@ -104,12 +125,6 @@ pipeline {
   post {
     success { echo 'Fileflow pipeline: SUCCESS' }
     failure { echo 'Fileflow pipeline: FAILURE' }
-    always  { sh 'echo "Kész."' }
+    always  { echo 'Kész.' }
   }
 }
-
-properties([
-  parameters([
-    booleanParam(name: 'NIGHTLY', defaultValue: false, description: 'Éjszakai csomagolás és outbox ürítés')
-  ])
-])
