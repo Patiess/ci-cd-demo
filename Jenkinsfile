@@ -49,17 +49,14 @@ pipeline {
 }
 
     // a Flask szerver nem áll le magától: háttérben futtatjuk, ellenőrizzük, leállítjuk
- stage('Test') {
+stage('Test') {
   steps {
     sh '''
       set -e
       docker rm -f ci-cd-demo-test || true
-      docker run -d --name ci-cd-demo-test ${IMAGE}:${TAG}
-      # adjunk kis időt az indulásra
+      docker run -d --name ci-cd-demo-test -p 8088:80 ${IMAGE}:${TAG}
       sleep 3
-      # kérjünk le tartalmat a konténeren BELÜL, a 0.0.0.0:80-ról
-      docker exec ci-cd-demo-test sh -lc "apk add --no-cache curl >/dev/null 2>&1 || true; curl -fsS http://127.0.0.1:80/" | tee /tmp/test_output.txt
-      # takarítás
+      curl -fsS http://host.docker.internal:8088/ | tee /tmp/test_output.txt
       docker rm -f ci-cd-demo-test
     '''
   }
