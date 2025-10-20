@@ -1,0 +1,107 @@
+pipeline {
+  agent any
+
+  options {
+    buildDiscarder(logRotator(numToKeepStr: '30'))
+    timestamps()
+  }
+
+  parameters {
+    booleanParam(name: 'RUN_NIGHTLY', defaultValue: false, description: 'Ha igaz, outbox archiválása történik.')
+    string(name: 'BASE', defaultValue: '/var/jenkins_home/fileflow', description: 'Alap könyvtár (inbox/fe/bo/processing/outbox/archive).')
+  }
+
+  stages {
+    stage('Init dirs') {
+      steps {
+        sh '''#!/bin/bash
+          set -euxo pipefail
+          BASE="${BASE:-/var/jenkins_home/fileflow}"
+          mkdir -p "$BASE/inbox" "$BASE/processing" "$BASE/fe" "$BASE/bo" "$BASE/outbox" "$BASE/archive"
+          ls -l "$BASE" || true
+        '''
+      }
+    }
+
+    stage('Route files') {
+      steps {
+        sh '''#!/bin/bash
+          set -euo pipefail
+          BASE="${BASE:-/var/jenkins_home/fileflow}"
+
+          declare -A ROUTES=(
+            [pdf]="fe"
+            [xml]="fe"
+            [csv]="bo"
+            [json]="bo"
+            [txt]="bo"
+          )
+
+          shopt -s nullglob
+          moved_any=0
+          for f in "$BASE/inbox"/*; do
+            name="$(basename "$f")"
+            ext="${name##*.}"
+            dest="${ROUTES[$ext]:-processing}"
+            echo "Move: $name -> $dest/"
+            mv -v "$f" "$BASE/$dest/"
+            moved_any=1
+          done
+
+          if [ "$moved_any" -eq 0 ]; then
+            echo "Nincs mit mozgatni az inbox-ban."
+          fi
+
+          echo "Állapot a routing után:"
+          for d in inbox processing fe bo outbox; do
+            echo "# $d"
+            ls -l "$BASE/$d" || true
+          done
+        '''
+      }
+    }
+
+    stage('Simulate containers (process -> outbox)') {
+      steps {
+        sh '''#!/bin/bash
+          set -euo pipefail
+          BASE="${BASE:-/var/jenkins_home/fileflow}"
+
+          for d in fe bo processing; do
+            shopt -s nullglob
+            for f in "$BASE/$d"/*; do
+              [ -e "$f" ] || continue
+              echo "$(date -Is) processed by $d" >> "$f"
+              mv -v "$f" "$BASE/outbox/"
+            done
+          done
+
+          echo "Outbox:"
+          ls -l "$BASE/outbox" || true
+        '''
+      }
+    }
+
+    stage('Nightly package (optional)') {
+      when { expression { return params.RUN_NIGHTLY } }
+      steps {
+        sh '''#!/bin/bash
+          set -euo pipefail
+          BASE="${BASE:-/var/jenkins_home/fileflow}"
+          TS="$(date +%Y%m%d)"
+          mkdir -p "$BASE/archive"
+
+          if compgen -G "$BASE/outbox/*" > /dev/null; then
+            tar -czf "$BASE/archive/outbox_${TS}.tar.gz" -C "$BASE" outbox
+            echo "Archive: $BASE/archive/outbox_${TS}.tar.gz"
+            rm -f "$BASE/outbox"/* || true
+          else
+            echo "Outbox üres, nincs mit archiválni."
+          fi
+
+          ls -l "$BASE/archive" || true
+        '''
+      }
+    }
+  }
+}
