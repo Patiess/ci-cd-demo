@@ -39,14 +39,14 @@ pipeline {
       }
     }
 
-    stage('Build') {
-      steps {
-        sh '''
-          export DOCKER_BUILDKIT=1
-          docker build --progress=plain -t ${IMAGE}:${TAG} .
-        '''
-      }
-    }
+ stage('Build') {
+  steps {
+    sh '''
+      export DOCKER_BUILDKIT=0
+      docker build -t ${IMAGE}:${TAG} .
+    '''
+  }
+}
 
     // a Flask szerver nem áll le magától: háttérben futtatjuk, ellenőrizzük, leállítjuk
     stage('Test') {
