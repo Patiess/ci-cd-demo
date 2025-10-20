@@ -1,6 +1,13 @@
 pipeline {
   agent any
 
+  options {
+    // ne legyen automatikus checkout a node-ra; mi intézzük
+    skipDefaultCheckout(true)
+    // logokban időbélyeg jól jön
+    timestamps()
+  }
+
   environment {
     DOCKERHUB_CRED = 'docker-hub'
     DOCKERHUB_USER = 'patiess'
@@ -10,8 +17,26 @@ pipeline {
   }
 
   stages {
+
+    stage('Pre-clean (caches + workspace)') {
+      steps {
+        // Git/SCM cache-ek takarítása a Jenkins konténerben
+        sh '''
+          set -e
+          echo "[pre-clean] cache-ek törlése..."
+          rm -rf /var/jenkins_home/caches/*git* 2>/dev/null || true
+          rm -rf /var/jenkins_home/caches/scm/* 2>/dev/null || true
+          echo "[pre-clean] kész."
+        '''
+        // aktuális workspace teljes törlése
+        deleteDir()
+      }
+    }
+
     stage('Checkout') {
-      steps { checkout scm }
+      steps {
+        checkout scm
+      }
     }
 
     stage('Build') {
@@ -23,18 +48,15 @@ pipeline {
       }
     }
 
-    // ⚠️ A Flask szerver nem lép ki, ezért háttérben futtatjuk, curl-lel ellenőrizzük, majd leállítjuk
+    // a Flask szerver nem áll le magától: háttérben futtatjuk, ellenőrizzük, leállítjuk
     stage('Test') {
       steps {
         sh '''
           set -e
           docker rm -f ci-cd-demo-test || true
           docker run -d --name ci-cd-demo-test -p 8088:80 ${IMAGE}:${TAG}
-          # adjunk időt az indulásra
           sleep 3
-          # várjuk, hogy 200-at adjon vissza és kapjunk tartalmat
           curl -fsS http://127.0.0.1:8088/ | tee /tmp/test_output.txt
-          # takarítás
           docker rm -f ci-cd-demo-test
         '''
       }
@@ -57,11 +79,8 @@ pipeline {
     stage('Deploy to K8s') {
       steps {
         sh '''
-          # K8s objektumok alkalmazása
           kubectl apply -f k8s/
-          # Új image kiadása (ha a Deployment már létezik)
           kubectl set image deployment/hello-deploy hello=${IMAGE}:${TAG} --record || true
-          # Várunk a rollout befejezésére max 2 percet
           kubectl rollout status deployment/hello-deploy --timeout=120s
         '''
       }
