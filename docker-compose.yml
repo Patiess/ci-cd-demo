@@ -1,0 +1,20 @@
+version: "3.8"
+services:
+  jenkins:
+    image: jenkins/jenkins:lts-jdk17
+    container_name: jenkins
+    restart: unless-stopped
+    user: "1000:1000"                # nem root (állítsd a saját host usered UID:GID-jára)
+    ports:
+      - "8080:8080"
+      - "50000:50000"
+    environment:
+      - JAVA_OPTS=-Duser.timezone=Europe/Budapest
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ~/.kube:/var/jenkins_home/.kube:ro
+    group_add:
+      - "${DOCKER_GID:-998}"         # a host 'docker' csoport GID-ját add ide
+volumes:
+  jenkins_home: {}
