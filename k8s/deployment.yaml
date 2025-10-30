@@ -1,52 +1,57 @@
-diff --git a/k8s/deployment.yaml b/k8s/deployment.yaml
-new file mode 100644
-index 0000000..1111111
---- /dev/null
-+++ b/k8s/deployment.yaml
-@@ -0,0 +1,66 @@
-+apiVersion: apps/v1
-+kind: Deployment
-+metadata:
-+  name: hello-deploy
-+  namespace: demo
-+  labels: { app: hello }
-+spec:
-+  replicas: 1
-+  revisionHistoryLimit: 3
-+  strategy:
-+    type: RollingUpdate
-+    rollingUpdate:
-+      maxUnavailable: 25%
-+      maxSurge: 25%
-+  selector:
-+    matchLabels: { app: hello }
-+  template:
-+    metadata:
-+      labels: { app: hello }
-+    spec:
-+      securityContext:
-+        runAsNonRoot: true
-+        runAsUser: 10001
-+        runAsGroup: 10001
-+        fsGroup: 10001
-+      containers:
-+        - name: hello
-+          image: patiess/ci-cd-demo:latest
-+          imagePullPolicy: IfNotPresent
-+          ports:
-+            - containerPort: 80
-+          readinessProbe:
-+            httpGet: { path: /, port: 80 }
-+            initialDelaySeconds: 2
-+            periodSeconds: 5
-+            timeoutSeconds: 2
-+            failureThreshold: 6
-+          livenessProbe:
-+            httpGet: { path: /, port: 80 }
-+            initialDelaySeconds: 5
-+            periodSeconds: 10
-+            timeoutSeconds: 2
-+            failureThreshold: 3
-+          resources:
-+            requests: { cpu: "50m", memory: "64Mi" }
-+            limits:   { cpu: "250m", memory: "256Mi" }
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-deploy
+  namespace: demo
+  labels:
+    app: hello
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 25%
+      maxSurge: 25%
+  selector:
+    matchLabels:
+      app: hello
+  template:
+    metadata:
+      labels:
+        app: hello
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      containers:
+        - name: hello
+          image: patiess/ci-cd-demo:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
