@@ -1,105 +1,130 @@
 pipeline {
   agent any
 
+  // fontos: ne legyen implicit (lightweight) checkout
   options {
+    skipDefaultCheckout(true)
     timestamps()
-    buildDiscarder(logRotator(numToKeepStr: '15'))
-    disableConcurrentBuilds()
+  }
+
+  parameters {
+    booleanParam(name: 'NIGHTLY', defaultValue: false, description: 'Éjszakai csomagolás és outbox ürítés')
   }
 
   environment {
-    DOCKERHUB_CRED = 'docker-hub'
-    DOCKERHUB_USER = 'patiess'
-    IMAGE          = "${env.DOCKERHUB_USER}/ci-cd-demo"
-    TAG            = "${env.BUILD_NUMBER}"
-    KUBECONFIG     = '/var/jenkins_home/.kube/config'
+    BASE = '/var/jenkins_home/fileflow'
   }
 
   stages {
-    stage('Pre-clean (caches + workspace)') {
-      steps {
-        sh '''
-          set -e
-          rm -rf /var/jenkins_home/caches/* || true
-        '''
-        deleteDir()
-      }
-    }
 
     stage('Checkout') {
-      steps { checkout scm }
+      steps {
+        // tiszta workspace és explicit, teljes klón
+        deleteDir()
+        checkout([
+          $class: 'GitSCM',
+          branches: [[name: '*/main']],
+          userRemoteConfigs: [[
+            url: 'https://github.com/Patiess/ci-cd-demo.git',
+            credentialsId: 'github-pat-2'
+          ]]
+        ])
+      }
     }
 
-    stage('Build') {
+    stage('Init dirs') {
       steps {
         sh '''
-          set -e
-          export DOCKER_BUILDKIT=0
-          docker build -t ${IMAGE}:${TAG} .
+          set -eu
+          mkdir -p "$BASE"/inbox "$BASE"/fe "$BASE"/bo "$BASE"/outbox "$BASE"/archive "$BASE"/logs
+          mkdir -p "$BASE"/processing/invoices "$BASE"/processing/messages "$BASE"/processing/reports "$BASE"/processing/texts
+          echo "Könyvtárstruktúra:"
+          ls -l "$BASE" || true
         '''
       }
     }
 
-    stage('Test (container smoke)') {
+    stage('Route files') {
       steps {
         sh '''
-          set -e
-          docker rm -f ci-cd-demo-test || true
-          docker run -d --name ci-cd-demo-test -p 8088:80 ${IMAGE}:${TAG}
-          sleep 3
-          curl -fsS http://host.docker.internal:8088/ | tee /tmp/test_output.txt
-          docker rm -f ci-cd-demo-test
+          set -eu
+
+          any=0
+          for f in "$BASE/inbox"/*; do
+            [ -e "$f" ] || break
+            any=1
+
+            name=$(basename "$f")
+            case "$name" in
+              *.inv) type="invoices"; target_side="bo" ;;
+              *.msg) type="messages"; target_side="fe" ;;
+              *.rpt) type="reports";  target_side="bo" ;;
+              *.txt) type="texts";    target_side="fe" ;;
+              *)     echo "Ismeretlen kiterjesztés, kihagyva: $name"; continue ;;
+            esac
+
+            mv "$f" "$BASE/processing/$type/$name"
+            cp -f "$BASE/processing/$type/$name" "$BASE/$target_side/" 2>/dev/null || true
+            echo "Routolva: $name -> processing/$type (+ $target_side)"
+          done
+
+          if [ "$any" -eq 0 ]; then
+            echo "Nincs mit mozgatni az inbox-ban."
+          fi
+
+          echo "Állapot a routing után:"
+          echo "# inbox";      ls -l "$BASE/inbox"      || true
+          echo "# processing"; ls -l "$BASE/processing" || true
+          echo "# fe";         ls -l "$BASE/fe"         || true
+          echo "# bo";         ls -l "$BASE/bo"         || true
         '''
       }
     }
 
-    stage('Security scan (Trivy)') {
+    stage('Simulate containers (process -> outbox)') {
       steps {
         sh '''
-          set -e
-          docker run --rm \
-            -v /var/run/docker.sock:/var/run/docker.sock \
-            aquasec/trivy:latest image \
-              --quiet \
-              --exit-code 0 \
-              --severity CRITICAL,HIGH \
-              ${IMAGE}:${TAG} || true
+          set -eu
+
+          for type in invoices messages reports texts; do
+            OUT="$BASE/outbox/${type}.txt"
+            : > "$OUT"
+
+            for f in "$BASE/processing/$type"/*; do
+              [ -e "$f" ] || break
+              [ -f "$f" ] || continue
+              echo ">> $(basename "$f")" >> "$OUT"
+              cat "$f" >> "$OUT"
+              printf "\\n----\\n" >> "$OUT"
+            done
+          done
+
+          echo "Outbox tartalma:"
+          ls -l "$BASE/outbox" || true
         '''
       }
     }
 
-    stage('Push to Docker Hub') {
-      steps {
-        script {
-          docker.withRegistry('https://index.docker.io/v1/', DOCKERHUB_CRED) {
-            sh '''
-              set -e
-              docker push ${IMAGE}:${TAG}
-              docker tag  ${IMAGE}:${TAG} ${IMAGE}:latest
-              docker push ${IMAGE}:latest
-            '''
-          }
-        }
-      }
-    }
-
-    stage('Deploy to K8s') {
+    stage('Nightly package (optional)') {
+      when { expression { return params.NIGHTLY?.toString() == 'true' } }
       steps {
         sh '''
-          set -e
-          kubectl apply -f k8s/namespace.yaml || true
-          kubectl apply -f k8s/
-          kubectl set image deployment/hello-deploy hello=${IMAGE}:${TAG} --record || true
-          kubectl -n demo rollout status deployment/hello-deploy --timeout=120s
-          kubectl -n demo get svc -o wide
+          set -eu
+          ts=$(date +%Y%m%d-%H%M%S)
+          pkg="$BASE/archive/pkg-$ts.tgz"
+          tar -czf "$pkg" -C "$BASE/outbox" . 2>/dev/null || true
+          echo "Csomag készült: $pkg"
+          find "$BASE/outbox" -type f -delete || true
+          echo "Archive:"
+          ls -lh "$BASE/archive" || true
         '''
       }
     }
   }
 
   post {
-    always {
-      sh 'docker image prune -f || true'
-    }
+    success { echo 'Fileflow pipeline: SUCCESS' }
+    failure { echo 'Fileflow pipeline: FAILURE' }
+    always  { echo 'Kész.' }
   }
 }
