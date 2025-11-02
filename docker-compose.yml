@@ -6,31 +6,27 @@ services:
     container_name: jenkins
     restart: unless-stopped
 
-    # futtatás nem-root userként (UID/GID az .env-ből)
     user: "${JENKINS_UID:-1000}:${JENKINS_GID:-1000}"
-
-    environment:
-      - JAVA_OPTS=-Duser.timezone=Europe/Budapest
-      - JENKINS_OPTS=--prefix=/
 
     ports:
       - "8080:8080"
       - "50000:50000"
 
+    environment:
+      - JAVA_OPTS=-Duser.timezone=Europe/Budapest
+      - JENKINS_OPTS=--prefix=/
+
     volumes:
-      # ÁLLANDÓ JENKINS HOME – a meglévő named volume-odra mutat
+      # perzisztens Jenkins home
       - jenkins_home:/var/jenkins_home
-
-      # Kubeconfig mount Windows alatt (//c/... formátum kötelező)
-      # Ha e miatt hiba jön, IDEIGLENESEN KOMMENTELD KI ezt a sort.
-     # - "${KUBECONFIG_HOST}:/var/jenkins_home/.kube:ro"
-
-      # Docker socket a hostról (Jenkinsből tudjunk buildelni)
+      # kubeconfig bind-mount (RO). A bal oldal .env-ből jön.
+      - ${KUBECONFIG_HOST}:/var/jenkins_home/.kube:ro
+      # docker.sock a buildhez
       - /var/run/docker.sock:/var/run/docker.sock
 
-    # Ha a docker.sock csoportja nem 0, itt megadható a GID
-    group_add:
-      - "${DOCKER_GID:-0}"
+    # Ezt kivesszük, mert nálad üres/0 volt → compose hiba lett.
+    # group_add:
+    #   - "${DOCKER_GID}"
 
 volumes:
   jenkins_home:
