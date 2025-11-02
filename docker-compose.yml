@@ -6,30 +6,33 @@ services:
     container_name: jenkins
     restart: unless-stopped
 
-    # futtassuk nem-rootként (a .env-ből jön a 1000:1000)
+    # futtatás nem-root userként (UID/GID az .env-ből)
     user: "${JENKINS_UID:-1000}:${JENKINS_GID:-1000}"
-
-    ports:
-      - "8080:8080"
-      - "50000:50000"
 
     environment:
       - JAVA_OPTS=-Duser.timezone=Europe/Budapest
       - JENKINS_OPTS=--prefix=/
 
+    ports:
+      - "8080:8080"
+      - "50000:50000"
+
     volumes:
-      # a régi, megőrzött jenkins_home volume-od
+      # ÁLLANDÓ JENKINS HOME – a meglévő named volume-odra mutat
       - jenkins_home:/var/jenkins_home
-      # kubeconfig a hostról (Windows alatt ez a .env-ben lévő path)
-      - ${KUBECONFIG_HOST}:/var/jenkins_home/.kube:ro
-      # docker socket a hostról
+
+      # Kubeconfig mount Windows alatt (//c/... formátum kötelező)
+      # Ha e miatt hiba jön, IDEIGLENESEN KOMMENTELD KI ezt a sort.
+      - "${KUBECONFIG_HOST}:/var/jenkins_home/.kube:ro"
+
+      # Docker socket a hostról (Jenkinsből tudjunk buildelni)
       - /var/run/docker.sock:/var/run/docker.sock
 
-    # tedd be a host docker gid-jét, hogy a socket elérhető legyen
+    # Ha a docker.sock csoportja nem 0, itt megadható a GID
     group_add:
-      - "${DOCKER_GID}"
+      - "${DOCKER_GID:-0}"
 
 volumes:
   jenkins_home:
     external: true
-    name: a99f401ebb8288d6c00479ef2ba478a50d1c38128b6aa8370e48b2d4c4cacb9d
+    name: jenkins_home
