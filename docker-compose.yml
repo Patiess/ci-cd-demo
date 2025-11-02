@@ -23,7 +23,7 @@ services:
 
       # Kubeconfig mount Windows alatt (//c/... formátum kötelező)
       # Ha e miatt hiba jön, IDEIGLENESEN KOMMENTELD KI ezt a sort.
-      - "${KUBECONFIG_HOST}:/var/jenkins_home/.kube:ro"
+     # - "${KUBECONFIG_HOST}:/var/jenkins_home/.kube:ro"
 
       # Docker socket a hostról (Jenkinsből tudjunk buildelni)
       - /var/run/docker.sock:/var/run/docker.sock
