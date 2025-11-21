@@ -10,4 +10,4 @@ spec:
   ports:
     - port: 80
       targetPort: 80
-      # nodePort: 3xxxx   # ha fix NodePort kell, itt megadhatod (30000–32767)
+
