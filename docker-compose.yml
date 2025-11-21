@@ -17,16 +17,10 @@ services:
       - JENKINS_OPTS=--prefix=/
 
     volumes:
-      # perzisztens Jenkins home
       - jenkins_home:/var/jenkins_home
-      # kubeconfig bind-mount (RO). A bal oldal .env-ből jön.
       - ${KUBECONFIG_HOST}:/var/jenkins_home/.kube:ro
-      # docker.sock a buildhez
       - /var/run/docker.sock:/var/run/docker.sock
 
-    # Ezt kivesszük, mert nálad üres/0 volt → compose hiba lett.
-    # group_add:
-    #   - "${DOCKER_GID}"
 
 volumes:
   jenkins_home:
