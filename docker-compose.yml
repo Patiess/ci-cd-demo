@@ -17,10 +17,8 @@ services:
       - JENKINS_OPTS=--prefix=/
 
     volumes:
-      - jenkins_home:/var/jenkins_home
-      - ${KUBECONFIG_HOST}:/var/jenkins_home/.kube:ro
+      - ./jenkins_home:/var/jenkins_home
       - /var/run/docker.sock:/var/run/docker.sock
-
 
 volumes:
   jenkins_home:
