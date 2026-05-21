@@ -84,12 +84,16 @@ stage('Push to Docker Hub') {
     stage('Deploy to K8s') {
       steps {
       sh '''
-          set -e
-          kubectl apply -f k8s/namespace.yaml --insecure-skip-tls-verify
-          kubectl apply -f k8s/ --insecure-skip-tls-verify
-          kubectl set image deployment/hello-deploy hello=${IMAGE}:${TAG} -n demo --insecure-skip-tls-verify
-          kubectl rollout status deployment/hello-deploy -n demo --timeout=120s --insecure-skip-tls-verify
-          kubectl get svc -n demo -o wide --insecure-skip-tls-verify
+      set -e
+      KUBE_PORT=$(kubectl config view --raw -o jsonpath='{.clusters[0].cluster.server}' | grep -oP '(?<=:)\\d+$')
+      kubectl config set-cluster $(kubectl config current-context) \
+        --server=https://host.docker.internal:${KUBE_PORT} \
+        --insecure-skip-tls-verify=true
+      kubectl apply -f k8s/namespace.yaml --insecure-skip-tls-verify --validate=false
+      kubectl apply -f k8s/ --insecure-skip-tls-verify --validate=false
+      kubectl set image deployment/hello-deploy hello=${IMAGE}:${TAG} -n demo --insecure-skip-tls-verify
+      kubectl rollout status deployment/hello-deploy -n demo --timeout=120s --insecure-skip-tls-verify
+      kubectl get svc -n demo -o wide --insecure-skip-tls-verify
         '''
       }
     }
