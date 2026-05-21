@@ -81,11 +81,12 @@ stage('Push to Docker Hub') {
       }
     }
 
-    stage('Deploy to K8s') {
-      steps {
-      sh '''
+stage('Deploy to K8s') {
+  steps {
+    sh '''
       set -e
-      KUBE_PORT=$(kubectl config view --raw -o jsonpath='{.clusters[0].cluster.server}' | grep -oP '(?<=:)\\d+$')
+      KUBE_SERVER=$(kubectl config view --raw -o jsonpath='{.clusters[0].cluster.server}')
+      KUBE_PORT=$(echo $KUBE_SERVER | sed 's/.*://')
       kubectl config set-cluster $(kubectl config current-context) \
         --server=https://host.docker.internal:${KUBE_PORT} \
         --insecure-skip-tls-verify=true
@@ -94,9 +95,9 @@ stage('Push to Docker Hub') {
       kubectl set image deployment/hello-deploy hello=${IMAGE}:${TAG} -n demo --insecure-skip-tls-verify
       kubectl rollout status deployment/hello-deploy -n demo --timeout=120s --insecure-skip-tls-verify
       kubectl get svc -n demo -o wide --insecure-skip-tls-verify
-        '''
-      }
-    }
+    '''
+  }
+}
   }
 
   post {
