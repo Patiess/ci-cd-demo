@@ -6,7 +6,7 @@ pipeline {
     DOCKERHUB_USER = 'patiess'
     IMAGE          = "${env.DOCKERHUB_USER}/ci-cd-demo"
     TAG            = "${env.BUILD_NUMBER}"
-    KUBECONFIG     = '/root/.kube/config'
+    KUBECONFIG     = '/var/jenkins_home/.kube/config'
   }
 
   options {
@@ -81,22 +81,18 @@ stage('Push to Docker Hub') {
       }
     }
 
-stage('Deploy to K8s') {
-  steps {
-    sh '''
-      set -e
-      cp /root/.kube/config /tmp/kube-rw.yaml
-      KUBE_PORT=$(kubectl config view --raw -o jsonpath='{.clusters[0].cluster.server}' | sed 's/.*://')
-      sed -i "s|server: https://.*|server: https://host.docker.internal:${KUBE_PORT}|g" /tmp/kube-rw.yaml
-      export KUBECONFIG=/tmp/kube-rw.yaml
-      kubectl apply -f k8s/namespace.yaml --insecure-skip-tls-verify --validate=false
-      kubectl apply -f k8s/ --insecure-skip-tls-verify --validate=false
-      kubectl set image deployment/hello-deploy hello=${IMAGE}:${TAG} -n demo --insecure-skip-tls-verify
-      kubectl rollout status deployment/hello-deploy -n demo --timeout=120s --insecure-skip-tls-verify
-      kubectl get svc -n demo -o wide --insecure-skip-tls-verify
-    '''
-  }
-}
+    stage('Deploy to K8s') {
+      steps {
+      sh '''
+          set -e
+          kubectl apply -f k8s/namespace.yaml --insecure-skip-tls-verify
+          kubectl apply -f k8s/ --insecure-skip-tls-verify
+          kubectl set image deployment/hello-deploy hello=${IMAGE}:${TAG} -n demo --insecure-skip-tls-verify
+          kubectl rollout status deployment/hello-deploy -n demo --timeout=120s --insecure-skip-tls-verify
+          kubectl get svc -n demo -o wide --insecure-skip-tls-verify
+        '''
+      }
+    }
   }
 
   post {
