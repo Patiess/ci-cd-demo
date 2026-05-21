@@ -6,7 +6,7 @@ pipeline {
     DOCKERHUB_USER = 'patiess'
     IMAGE          = "${env.DOCKERHUB_USER}/ci-cd-demo"
     TAG            = "${env.BUILD_NUMBER}"
-    KUBECONFIG     = '/var/jenkins_home/.kube/config'
+    KUBECONFIG     = '/root/.kube/config'
   }
 
   options {
