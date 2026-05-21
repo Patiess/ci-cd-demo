@@ -13,7 +13,7 @@ services:
       - "50000:50000"
 
     environment:
-      - JAVA_OPTS=-Duser.timezone=Europe/Budapest
+      - JAVA_OPTS=-Duser.timezone=Europe/Budapest -Djenkins.install.runSetupWizard=false
       - JENKINS_OPTS=--prefix=/
 
     volumes:
