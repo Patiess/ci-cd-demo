@@ -71,18 +71,13 @@ pipeline {
       }
     }
 
-    stage('Push to Docker Hub') {
+stage('Push to Docker Hub') {
       steps {
-        script {
-          docker.withRegistry('', DOCKERHUB_CRED) {
-            sh '''
-              set -e
-              docker push ${IMAGE}:${TAG}
-              docker tag  ${IMAGE}:${TAG} ${IMAGE}:latest
-              docker push ${IMAGE}:latest
-            '''
-          }
-        }
+        sh '''
+          set -e
+          echo "Push to Docker Hub skipped (local execution)"
+          docker tag ${IMAGE}:${TAG} ${IMAGE}:latest
+        '''
       }
     }
 
