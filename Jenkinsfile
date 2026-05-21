@@ -85,25 +85,15 @@ stage('Deploy to K8s') {
   steps {
     sh '''
       set -e
-      KUBE_SERVER=$(kubectl config view --raw -o jsonpath='{.clusters[0].cluster.server}')
-      KUBE_PORT=$(echo $KUBE_SERVER | sed 's/.*://')
-      kubectl apply -f k8s/namespace.yaml \
-        --server=https://host.docker.internal:${KUBE_PORT} \
-        --insecure-skip-tls-verify=true \
-        --validate=false
-      kubectl apply -f k8s/ \
-        --server=https://host.docker.internal:${KUBE_PORT} \
-        --insecure-skip-tls-verify=true \
-        --validate=false
-      kubectl set image deployment/hello-deploy hello=${IMAGE}:${TAG} -n demo \
-        --server=https://host.docker.internal:${KUBE_PORT} \
-        --insecure-skip-tls-verify=true
-      kubectl rollout status deployment/hello-deploy -n demo --timeout=120s \
-        --server=https://host.docker.internal:${KUBE_PORT} \
-        --insecure-skip-tls-verify=true
-      kubectl get svc -n demo -o wide \
-        --server=https://host.docker.internal:${KUBE_PORT} \
-        --insecure-skip-tls-verify=true
+      cp /root/.kube/config /tmp/kube-rw.yaml
+      KUBE_PORT=$(kubectl config view --raw -o jsonpath='{.clusters[0].cluster.server}' | sed 's/.*://')
+      sed -i "s|server: https://.*|server: https://host.docker.internal:${KUBE_PORT}|g" /tmp/kube-rw.yaml
+      export KUBECONFIG=/tmp/kube-rw.yaml
+      kubectl apply -f k8s/namespace.yaml --insecure-skip-tls-verify --validate=false
+      kubectl apply -f k8s/ --insecure-skip-tls-verify --validate=false
+      kubectl set image deployment/hello-deploy hello=${IMAGE}:${TAG} -n demo --insecure-skip-tls-verify
+      kubectl rollout status deployment/hello-deploy -n demo --timeout=120s --insecure-skip-tls-verify
+      kubectl get svc -n demo -o wide --insecure-skip-tls-verify
     '''
   }
 }
