@@ -81,10 +81,19 @@ stage('Push to Docker Hub') {
       }
     }
 
-    stage('Deploy to K8s') {
+stage('Deploy to K8s') {
       steps {
-      sh '''
+        sh '''
           set -e
+          echo "Kubeconfig röptében történő javítása a Docker Desktop hálózathoz..."
+          
+          cp /var/jenkins_home/.kube/config /tmp/kubeconfig
+          
+          sed -i 's/127.0.0.1/host.docker.internal/g' /tmp/kubeconfig
+          sed -i 's/localhost/host.docker.internal/g' /tmp/kubeconfig
+          
+          export KUBECONFIG=/tmp/kubeconfig
+          
           kubectl apply -f k8s/namespace.yaml --insecure-skip-tls-verify
           kubectl apply -f k8s/ --insecure-skip-tls-verify
           kubectl set image deployment/hello-deploy hello=${IMAGE}:${TAG} -n demo --insecure-skip-tls-verify
