@@ -11,6 +11,8 @@ services:
     ports:
       - "8080:8080"
       - "50000:50000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       - JAVA_OPTS=-Duser.timezone=Europe/Budapest -Djenkins.install.runSetupWizard=false
       - JENKINS_OPTS=--prefix=/
