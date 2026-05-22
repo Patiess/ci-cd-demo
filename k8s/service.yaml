@@ -6,7 +6,7 @@ metadata:
 spec:
   type: LoadBalancer
   selector:
-    app: Szakdolgozat
+    app: hello
   ports:
     - port: 8081
       targetPort: 80
