@@ -1,6 +1,19 @@
-FROM jenkins/jenkins:lts-jdk17
+FROM jenkins/jenkins:lts
 USER root
 RUN apt-get update && apt-get install -y docker.io curl
-RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/$(dpkg --print-architecture)/kubectl" \
-    && chmod +x ./kubectl \
-    && mv ./kubectl /usr/local/bin/kubectl
+
+RUN ARCH=$(dpkg --print-architecture) && \
+    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/${ARCH}/kubectl" \
+    && chmod +x kubectl \
+    && mv kubectl /usr/local/bin/
+
+RUN mkdir -p /usr/share/jenkins/ref/jobs/szakdolgozat-pipeline
+COPY jenkins-jobs-backup/szakdolgozat-pipeline-config.xml /usr/share/jenkins/ref/jobs/szakdolgozat-pipeline/config.xml
+RUN chown -R jenkins:jenkins /usr/share/jenkins/ref/jobs
+
+USER jenkins
+RUN jenkins-plugin-cli --plugins \
+    git \
+    workflow-aggregator \
+    timestamper \
+    pipeline-stage-view
