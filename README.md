@@ -21,13 +21,3 @@ A szakdolgozat-pipeline job automatikusan létrejön. Build now / Építés most
 Az alkalmazás elérése
 Sikeres futás után:
 http://localhost:8081
-
-Projekt struktúra
-szakdolgozat/
-├── app.py                    # Flask webalkalmazás
-├── Dockerfile                # Alkalmazás image
-├── Dockerfile.jenkins        # Jenkins image
-├── docker-compose.yml        # Indítási konfiguráció
-├── Jenkinsfile               # CI/CD pipeline
-├── jenkins-jobs-backup/      # Pipeline job konfiguráció
-└── k8s/                      # Kubernetes manifesztek
