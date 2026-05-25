@@ -9,7 +9,7 @@ Kubernetes engedélyezve: Settings → Kubernetes → Enable Kubernetes → Appl
 
 
 Telepítés és indítás
-Csomagold ki a ZIP fájlt az Asztalra szakdolgozat névvel, majd futtasd PowerShellben:
+Zip fájl kicsomagolása, majd futattása Powershellben
 powershellcd "$env:USERPROFILE\Desktop\szakdolgozat"
 docker-compose up -d --build
 Az első indítás 3-5 percet vesz igénybe.
