@@ -6,7 +6,6 @@ Előfeltételek
 
 Docker Desktop telepítve és futtatva
 Kubernetes engedélyezve: Settings → Kubernetes → Enable Kubernetes → Apply & Restart
-Várj amíg mindkét jelzőlámpa zöld (Docker + Kubernetes)
 
 
 Telepítés és indítás
@@ -17,7 +16,7 @@ Az első indítás 3-5 percet vesz igénybe.
 
 Jenkins megnyitása
 http://localhost:8080
-A szakdolgozat-pipeline job automatikusan létrejön. Kattints a Build Now gombra.
+A szakdolgozat-pipeline job automatikusan létrejön. Build now / Építés most gomb megnyomása.
 
 Az alkalmazás elérése
 Sikeres futás után:
